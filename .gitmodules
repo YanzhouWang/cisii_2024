@@ -1,0 +1,3 @@
+[submodule "general_rod_formulation"]
+	path = general_rod_formulation
+	url = git@github.com:YanzhouWang/general_rod_formulation.git
