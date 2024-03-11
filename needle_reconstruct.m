@@ -56,16 +56,20 @@ M.frames = zeros(4, 4, M.nFrames); % frames container
 
 
 Fbt = invSE3(Fwb)*Fwt;
-tbt = Fbt(1:3,4);
-M.d0 = 1/M.Nel*[tbt; 0; 0; 0]; % initial relative configuration
+% tbt = Fbt(1:3,4);
+% M.d0 = 1/M.Nel*[tbt; 0; 0; 0]; % initial relative configuration
+
+xi = get_twist(Fbt);
+M.d0 = 1/M.Nel*xi; % initial relative configuration
 
 M.frames = zeros(4, 4, M.nFrames); % frames container
 
-% M.frames(:, :, 1) = Fwb; % initialize first frame
-% M.frames(:, :, M.nFrames) = Fwt; % initialize last frame
+M.frames(:, :, 1) = Fwb; % initialize first frame
+M.frames(:, :, M.nFrames) = Fwt; % initialize last frame
 
-M.frames(:, :, 1) = eye(4); % initialize first frame
-M.frames(:, :, M.nFrames) = Fbt; % initialize last frame
+% M.frames(:, :, 1) = eye(4); % initialize first frame
+% M.frames(:, :, M.nFrames) = Fbt; % initialize last frame
+
 
 for e = 1:M.Nel - 1
     M.frames(:, :, e + 1) = M.frames(:, :, e)*Exp_SE3(M.d0);
@@ -121,14 +125,14 @@ while ~ESC_PRESSED && ishghandle(fig)
     % F.pnt = [Tip_FX; Tip_FY; Tip_FZ; Tip_TX; Tip_TY; Tip_TZ];
     % F.pnt = [0;0;0;0;0;0];
     tic
-    
-    M.d0 = M.L/M.Nel*[1; 0; 0; 0; 0; 0]; % initial relative configuration
-    M.nFrames = M.Nel + 1; % total number of frames
-    M.frames = zeros(4, 4, M.nFrames); % frames container
-    M.frames(:, :, 1) = eye(4); % initialize first frame
-    for e = 1:M.Nel
-        M.frames(:, :, e + 1) = M.frames(:, :, e)*Exp_SE3(M.d0);
-    end
+    % 
+    % M.d0 = M.L/M.Nel*[1; 0; 0; 0; 0; 0]; % initial relative configuration
+    % M.nFrames = M.Nel + 1; % total number of frames
+    % M.frames = zeros(4, 4, M.nFrames); % frames container
+    % M.frames(:, :, 1) = eye(4); % initialize first frame
+    % for e = 1:M.Nel
+    %     M.frames(:, :, e + 1) = M.frames(:, :, e)*Exp_SE3(M.d0);
+    % end
 
 
     em_frames = aurora_get_frames(aurora_device);
@@ -136,9 +140,11 @@ while ~ESC_PRESSED && ishghandle(fig)
     [Fwb, Fwt] = base_tip_frames(em_frames,F_bm_nb);
 
     Fbt = invSE3(Fwb)*Fwt;
-    tbt = Fbt(1:3,4);
+    % tbt = Fbt(1:3,4);
+    % M.d0 = 1/M.Nel*[tbt; 0; 0; 0]; % initial relative configuration
 
-    M.d0 = 1/M.Nel*[tbt; 0; 0; 0]; % initial relative configuration
+    xi = get_twist(Fbt);
+    M.d0 = 1/M.Nel*xi; % initial relative configuration
 
     M.frames = zeros(4, 4, M.nFrames); % frames container
     M.frames(:, :, 1) = Fwb; % initialize first frame
@@ -155,7 +161,7 @@ while ~ESC_PRESSED && ishghandle(fig)
 
     % M.frames(1:3, 1:3, 13) = eye(3);
 
-    M.frames(1:3, 1:3, 13) = M.frames(1:3, 1:3, 1);
+    % M.frames(1:3, 1:3, 13) = M.frames(1:3, 1:3, 1);
 
 
     M.frames = Solve(M, F, S);
@@ -166,10 +172,12 @@ end
 
 %%
 
-M.frames(1:3, 1:3, 13) = eye(3);
+% M.frames(1:3, 1:3, 13) = eye(3);
+% 
+% %%
+% M.frames = Solve(M, F, S);
 
-%%
-M.frames = Solve(M, F, S);
+aurora_shutdown_wrapper(aurora_device)
 
 
 %% FEM Solver
