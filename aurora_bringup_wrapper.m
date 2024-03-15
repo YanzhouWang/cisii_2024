@@ -1,4 +1,4 @@
-function aurora_device = aurora_bringup_wrapper(USB_Port)
+function aurora_device = aurora_bringup_wrapper(USB_Port, BaudRate)
 aurora_device = AuroraDriver(USB_Port);
 serial_present = instrfind;  % should not be empty if aurora device detected 
 
@@ -8,6 +8,13 @@ try
 catch ME
     warning('Port locked. Try issuing sudo chmod %s\n', USB_Port);
 end
+
+% edit: baud rate
+if nargin == 2
+    aurora_device.setBaudRate(BaudRate); % sudo stty -F /dev/ttyUSB0 14400
+    disp(['Baud Rate set to ', num2str(BaudRate)])
+end
+
 aurora_device.init();
 aurora_device.detectAndAssignPortHandles();
 aurora_device.initPortHandleAll();

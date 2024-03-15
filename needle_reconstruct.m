@@ -59,16 +59,16 @@ Fbt = invSE3(Fwb)*Fwt;
 % tbt = Fbt(1:3,4);
 % M.d0 = 1/M.Nel*[tbt; 0; 0; 0]; % initial relative configuration
 
-xi = get_twist(Fbt);
+xi = Log_SE3(Fbt);
 M.d0 = 1/M.Nel*xi; % initial relative configuration
 
 M.frames = zeros(4, 4, M.nFrames); % frames container
 
-M.frames(:, :, 1) = Fwb; % initialize first frame
-M.frames(:, :, M.nFrames) = Fwt; % initialize last frame
+% M.frames(:, :, 1) = Fwb; % initialize first frame
+% M.frames(:, :, M.nFrames) = Fwt; % initialize last frame
 
-% M.frames(:, :, 1) = eye(4); % initialize first frame
-% M.frames(:, :, M.nFrames) = Fbt; % initialize last frame
+M.frames(:, :, 1) = eye(4); % initialize first frame
+M.frames(:, :, M.nFrames) = Fbt; % initialize last frame
 
 
 for e = 1:M.Nel - 1
@@ -142,27 +142,29 @@ while ~ESC_PRESSED && ishghandle(fig)
     Fbt = invSE3(Fwb)*Fwt;
     % tbt = Fbt(1:3,4);
     % M.d0 = 1/M.Nel*[tbt; 0; 0; 0]; % initial relative configuration
-
-    xi = get_twist(Fbt);
+    % 
+    xi = Log_SE3(Fbt);
     M.d0 = 1/M.Nel*xi; % initial relative configuration
 
-    M.frames = zeros(4, 4, M.nFrames); % frames container
-    M.frames(:, :, 1) = Fwb; % initialize first frame
-    M.frames(:, :, M.nFrames) = Fwt; % initialize last frame
+    % M.frames = zeros(4, 4, M.nFrames); % frames container
+    % M.frames(:, :, 1) = Fwb; % initialize first frame
+    % M.frames(:, :, M.nFrames) = Fwt; % initialize last frame
+
 
     % 
-    % M.frames(:, :, 1) = eye(4); % initialize first frame
-    % M.frames(:, :, M.nFrames) = Fbt; % initialize last frame
+    M.frames(:, :, 1) = eye(4); % initialize first frame
+    M.frames(:, :, M.nFrames) = Fbt; % initialize last frame
 
     for e = 1:M.Nel - 1
         M.frames(:, :, e + 1) = M.frames(:, :, e)*Exp_SE3(M.d0);
         % M.frames(:, :, e + 1) = M.frames(:, :, e)*[eye(3),M.d0(1:3);0,0,0,1];
     end
 
-    % M.frames(1:3, 1:3, 13) = eye(3);
 
-    % M.frames(1:3, 1:3, 13) = M.frames(1:3, 1:3, 1);
 
+    % M.frames(:, :, M.nFrames) = Fbt;
+
+    % tic
 
     M.frames = Solve(M, F, S);
     t = toc;
@@ -230,7 +232,8 @@ while err_mag > S.tol
 
         ke = transpose(P_d_local)*M.K_material*P_d_local/M.l;
         g_int_e = transpose(P_d_local)*M.K_material*(d_local - M.d0)/M.l;
-        g_ext_e = int_f_ext(M.l, d_local, F.dis);
+        % g_ext_e = int_f_ext(M.l, d_local, F.dis);
+        g_ext_e = zeros(12, 1);
 
         K(S.LM(1:12, e), S.LM(1:12, e)) = K(S.LM(1:12, e), S.LM(1:12, e)) + ke;
         g_int(S.LM(1:12, e)) = g_int(S.LM(1:12, e)) + g_int_e;
@@ -247,7 +250,7 @@ while err_mag > S.tol
     for n = 1:nFrames
         frames(:, :, n) = frames_converged(:, :, n)*Exp_SE3(delta_x(6*n - 5 : 6*n)); % update frames
     end
-    err_mag = norm(residual(freeDOF));
+    err_mag = norm(residual(freeDOF))
     % fprintf('Residual Error: %f\n', err_mag);
 end
 
