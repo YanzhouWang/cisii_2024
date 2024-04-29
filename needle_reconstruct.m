@@ -6,7 +6,24 @@ clear
 % warning('off','all')
 
 %%
-aurora_device = aurora_bringup_wrapper("/dev/ttyUSB0"); % CHMOD 666
+% aurora_device = aurora_bringup_wrapper("/dev/ttyUSB0"); % CHMOD 666
+
+% aurora_device = aurora_bringup_wrapper("/dev/ttyUSB0", 9600); % CHMOD 666
+aurora_device = aurora_bringup_wrapper("/dev/ttyUSB0", 230400); % CHMOD 666 c
+% sudo chmod 666 /dev/ttyUSB0
+% sudo stty -F /dev/ttyUSB0 230400
+
+% ls /dev/ttyUSB* % lsusb
+% aurora_device = aurora_bringup_wrapper("/dev/ttyUSB0", 9600); % CHMOD 666 c
+
+%%
+for i = 1:5
+    [t, ~, err] = aurora_raw_frame(aurora_device);
+    disp(t);
+    disp(err)
+    pause(0.5)
+end
+
 
 %%
 F_bm_nb = zeros(4); 
@@ -16,11 +33,29 @@ for i = 1:N
     % frames: 1: world, 2: base marker (bm) not real needle base, 3: needle tip
     % em emitter coord: 0
 
-    p_0_tip = em_frames(1:3,4,3);
-    F_0_bm = em_frames(:,:,2);
+    % p_0_tip = em_frames(1:3,4,3);
+    % F_0_bm = em_frames(:,:,2);
+    % F_0_tip = F_0_bm;
+    % F_0_tip(1:3,4) = p_0_tip;
+    % 
+    % % transform back to the true needle base, suppose that length is 150mm
+    % F_tip_nb = eye(4); % -150 x
+    % F_tip_nb(1,4) = -150;
+    % F_0_nb = F_0_tip*F_tip_nb;
+
+    % framedata = invSE3(F_0_bm)*F_0_nb;
+    % F_bm_nb = F_bm_nb + framedata;
+    
+    % norm(p_0_tip - F_0_bm(1:3,4));
+
+
+    em_frames(:,:,1) = eye(4);
+    [F_0_bm,F_0_tip] = base_tip_frames(em_frames, eye(4));
+
+    p_0_tip = F_0_tip(1:3,4);
     F_0_tip = F_0_bm;
     F_0_tip(1:3,4) = p_0_tip;
-    
+
     % transform back to the true needle base, suppose that length is 150mm
     F_tip_nb = eye(4); % -150 x
     F_tip_nb(1,4) = -150;
@@ -30,6 +65,7 @@ for i = 1:N
     F_bm_nb = F_bm_nb + framedata;
     
     % norm(p_0_tip - F_0_bm(1:3,4));
+
     
     disp(framedata(1:3,4)')
     % disp(norm(p_0_tip - F_0_bm(1:3,4)))
@@ -39,6 +75,68 @@ end
 F_bm_nb = F_bm_nb / N
 
 [Fwb, Fwt] = base_tip_frames(em_frames,F_bm_nb);
+
+
+%%
+F_bm_nb =[
+    1.0000    0.0000    0.0000   75.2956;
+    0.0000    1.0000   -0.0000  -31.5101;
+    0.0000   -0.0000    1.0000   24.7603;
+         0         0         0    1.0000];
+
+
+Fza = [0 1 0 0; 0 0 1 0; 1 0 0 0; 0 0 0 1]; 
+Fy = [-1 0 0 0; 0 1 0 0; 0 0 -1 0; 0 0 0 1];
+
+traj = [];
+
+figure;
+global ESC_PRESSED % Tip_FX Tip_FY Tip_FZ Tip_TX Tip_TY Tip_TZ
+ESC_PRESSED = 0;
+while ~ESC_PRESSED
+
+    [em_frames,err] = aurora_get_frames(aurora_device);
+
+    % % base: rotate wrt y -pi
+    % em_frames(:,:,2) = em_frames(:,:,2) * Fy;
+    % em_frames(:,:,3) = em_frames(:,:,3) * Fza;
+
+    [F_w_nb,F_w_tip,F_w_bm] = base_tip_frames(em_frames, F_bm_nb, 0);
+
+    traj = [traj, F_w_tip(1:3,4)];
+
+    plot3(traj(1,:), traj(2,:), traj(3,:), 'k-', 'LineWidth', 3);
+
+    hold on
+
+    w_frames = zeros(4,4,2);
+    w_frames(:,:,1) = F_w_nb;
+    w_frames(:,:,2) = F_w_tip;
+    w_frames(:,:,3) = F_w_bm;
+    plotTransforms(se3(w_frames),'FrameSize', 10)
+
+    hold off
+
+    dists = em_err_dists(err);
+
+    xlabel('X');
+    ylabel('Y');
+    zlabel('Z');
+    set(gca, 'XDir','reverse')
+
+    title(sprintf('err: w: %.3f; b: %.3f \n dists: w: %.3f; b: %.3f; n: %.3f',...
+        err(1),err(2), dists(1), dists(2), dists(3)))
+
+    axis equal
+    grid on
+    drawnow
+
+
+
+    % pause(0.1)
+end
+
+
 
 
 
@@ -125,15 +223,6 @@ while ~ESC_PRESSED && ishghandle(fig)
     % F.pnt = [Tip_FX; Tip_FY; Tip_FZ; Tip_TX; Tip_TY; Tip_TZ];
     % F.pnt = [0;0;0;0;0;0];
     tic
-    % 
-    % M.d0 = M.L/M.Nel*[1; 0; 0; 0; 0; 0]; % initial relative configuration
-    % M.nFrames = M.Nel + 1; % total number of frames
-    % M.frames = zeros(4, 4, M.nFrames); % frames container
-    % M.frames(:, :, 1) = eye(4); % initialize first frame
-    % for e = 1:M.Nel
-    %     M.frames(:, :, e + 1) = M.frames(:, :, e)*Exp_SE3(M.d0);
-    % end
-
 
     em_frames = aurora_get_frames(aurora_device);
 
@@ -183,42 +272,16 @@ aurora_shutdown_wrapper(aurora_device)
 
 
 %% FEM Solver
-function frames = Solve(M, F, S)
-M.l = M.L/M.Nel; % rod element length
-M.G = M.E/(2*(1 + M.nu)); % Shear modulus
-M.A = pi*M.r^2; % Area of the beam cross-section
-M.I = pi*M.r^4/4; % Second moment of area of the beam cross-section
-M.J = 2*M.I; % Polar moment of area of the beam cross-section
-M.k = 6*(1 + M.nu)/(7 + 6*M.nu); % Shear correction factor
-M.K_material = diag([M.E*M.A, M.k*M.G*M.A, M.k*M.G*M.A, M.G*M.J, M.E*M.I, M.E*M.I]); % material stiffness matrix of cross-section
+function frames = Solve(M, F, S, delta_base)
+delta_x = zeros(S.nDOF, 1);
+err_mag = 5;
 
-Nen = 12; % DOF per element
-nFrames = M.Nel + 1; % total number of frames
-DOF = 1:6*nFrames; % global DOF number
-nDOF = length(DOF); % total number of DOF
-
-freeDOF = DOF;
-nEBC_nodes = length(S.fixed_frames);
-fixedDOF_idx = zeros(6*nEBC_nodes, 1);
-for i= 1:nEBC_nodes
-    fixedDOF_idx(6*i - 5 : 6*i) = ...
-        6*S.fixed_frames(i) - 5 : 6*S.fixed_frames(i);
-end
-freeDOF(fixedDOF_idx) = []; % remove EBC from DOF
-
-% Construction of LM
-if ~isfield(S, 'LM')
-    S.LM = zeros(Nen, M.Nel);
-    for e = 1:M.Nel
-        S.LM(:, e) = (6*e - 5) : 6*(e + 1);
-    end
-end
-
-delta_x = zeros(nDOF, 1); % initialize delta_x array
-err_mag = 5; % initialize error magnitude
+% Since delta_base is purely kinematic, main modification is at the end
 frames = M.frames;
 frames_converged = M.frames;
 
+nDOF = S.nDOF;
+freeDOF = S.freeDOF;
 while err_mag > S.tol
     % Main FEM
     K = zeros(nDOF, nDOF); % tangent stiffness matrix
@@ -232,8 +295,11 @@ while err_mag > S.tol
 
         ke = transpose(P_d_local)*M.K_material*P_d_local/M.l;
         g_int_e = transpose(P_d_local)*M.K_material*(d_local - M.d0)/M.l;
-        % g_ext_e = int_f_ext(M.l, d_local, F.dis);
-        g_ext_e = zeros(12, 1);
+        if ~all(F.dis == 0)
+            g_ext_e = int_f_ext(M.l, d_local, F.dis);
+        else
+            g_ext_e = zeros(12, 1);
+        end
 
         K(S.LM(1:12, e), S.LM(1:12, e)) = K(S.LM(1:12, e), S.LM(1:12, e)) + ke;
         g_int(S.LM(1:12, e)) = g_int(S.LM(1:12, e)) + g_int_e;
@@ -247,14 +313,22 @@ while err_mag > S.tol
     
     delta_x_free = - invChol_mex(K(freeDOF, freeDOF))*residual(freeDOF); % Newton's method
     delta_x(freeDOF) = delta_x(freeDOF) + delta_x_free; % update delta_x
-    for n = 1:nFrames
+    for n = 1:S.nFrames
         frames(:, :, n) = frames_converged(:, :, n)*Exp_SE3(delta_x(6*n - 5 : 6*n)); % update frames
     end
-    err_mag = norm(residual(freeDOF))
+    err_mag = norm(residual(freeDOF));
     % fprintf('Residual Error: %f\n', err_mag);
+    
+    %% main modification
+    ds = get_d_from_frames(frames); % get information from converged frames
+    frames(:, :, 1) = frames(:, :, 1)*delta_base; % increment first frame
+    for e = 1:M.Nel % reconstruct the rest
+        d_local = ds(:, e);
+        frames(:, :, e + 1) = frames(:, :, e)*Exp_SE3(d_local);
+    end    
+end
 end
 
-end
 
 %% Plotting
 function Plot(M, A)
