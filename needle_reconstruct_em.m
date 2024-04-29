@@ -9,7 +9,7 @@ clear
 
 %% Aurora and Setup Initialization
 % Aurora
-aurora_device = aurora_bringup_wrapper("/dev/ttyUSB0", 230400); % CHMOD 666
+aurora_device = aurora_bringup_wrapper("/dev/ttyUSB1", 230400); % CHMOD 666
 
 % Check frames
 for i = 1:5
@@ -121,4 +121,18 @@ ylabel('Y');
 zlabel('Z');
 axis equal
 grid on
+Plot(M, A);
+end
+
+%% Plotting
+function Plot(M, A)
+X = squeeze(M.frames(1, 4, :));
+Y = squeeze(M.frames(2, 4, :));
+Z = squeeze(M.frames(3, 4, :));
+set(A.Children(1), 'XData', X, 'YData', Y, 'ZData', Z);
+for i = 1:M.nFrames
+    A.Children(2).Children(M.nFrames - i + 1).Children.Matrix = ...
+        M.frames(:, :, i);
+end
+drawnow
 end
