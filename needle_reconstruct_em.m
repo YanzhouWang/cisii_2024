@@ -122,6 +122,65 @@ zlabel('Z');
 axis equal
 grid on
 Plot(M, A);
+
+%% Realtime Reconstruction
+while ishandle(fig)
+    % get frames
+    [em_frames, err] = aurora_get_frames(aurora_device);
+    [F_w_nb, F_w_tip, ~] = base_tip_frames(em_frames, F_bm_nb, 0);
+    M.frames(:, :, 1) = F_w_nb;
+    M.frames(:, :, M.nFrames) = F_w_tip;
+    % solve
+    M.frames = Solve(M, F, S);
+    Plot(M, A);
+end
+end
+
+%% FEM Solver
+function frames = Solve(M, F, S)
+delta_x = zeros(S.nDOF, 1); % initialize delta_x array
+err_mag = 5; % initialize error magnitude
+frames = M.frames;
+frames_converged = M.frames;
+
+nDOF = S.nDOF;
+freeDOF = S.freeDOF;
+while err_mag > S.tol
+    % Main FEM
+    K = zeros(nDOF, nDOF); % tangent stiffness matrix
+    g_int = zeros(nDOF, 1); % internal force vector
+    g_ext = zeros(nDOF, 1); % external force vector
+    ds = get_d_from_frames(frames); % current d arrays
+    % Loop over each element
+    for e = 1:M.Nel
+        d_local = ds(:, e);
+        P_d_local = P(d_local);
+
+        ke = transpose(P_d_local)*M.K_material*P_d_local/M.l;
+        g_int_e = transpose(P_d_local)*M.K_material*(d_local - M.d0)/M.l;
+        if ~all(F.dis == 0)
+            g_ext_e = int_f_ext(M.l, d_local, F.dis);
+        else
+            g_ext_e = zeros(12, 1);
+        end
+        K(S.LM(1:12, e), S.LM(1:12, e)) = K(S.LM(1:12, e), S.LM(1:12, e)) + ke;
+        g_int(S.LM(1:12, e)) = g_int(S.LM(1:12, e)) + g_int_e;
+        g_ext(S.LM(1:12, e)) = g_ext(S.LM(1:12, e)) + g_ext_e;
+    end
+
+    g_ext(6*S.forced_frames - 5: 6*S.forced_frames) = ...
+    g_ext(6*S.forced_frames - 5: 6*S.forced_frames) + F.pnt; % external wrench at node
+
+    residual = g_int - g_ext;
+    
+    delta_x_free = - invChol_mex(K(freeDOF, freeDOF))*residual(freeDOF); % Newton's method
+    delta_x(freeDOF) = delta_x(freeDOF) + delta_x_free; % update delta_x
+    for n = 1:S.nFrames
+        frames(:, :, n) = frames_converged(:, :, n)*Exp_SE3(delta_x(6*n - 5 : 6*n)); % update frames
+    end
+    err_mag = norm(residual(freeDOF));
+    % fprintf('Residual Error: %f\n', err_mag);
+end
 end
 
 %% Plotting
